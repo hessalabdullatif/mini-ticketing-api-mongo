@@ -23,7 +23,7 @@ class StoreOrderRequest extends FormRequest
             // at least one, capped to stop someone ordering ten thousand seats
             'quantity'  => ['required', 'integer', 'min:1', 'max:10'],
 
-            'gateway'   => ['sometimes', 'string', 'in:stripe,cmi'],
+            'gateway' => ['sometimes', 'string', 'in:visa,mada'],    
         ];
     }
 
