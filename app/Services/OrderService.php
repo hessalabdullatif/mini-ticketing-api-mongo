@@ -2,7 +2,9 @@
 
 namespace App\Services;
 
+use App\Contracts\PaymentGateway;
 use App\Exceptions\InsufficientTicketsException;
+use App\Jobs\SendOrderConfirmationEmail;
 use App\Models\Order;
 use App\Models\Ticket;
 use App\Models\User;
@@ -11,20 +13,21 @@ use Illuminate\Support\Facades\Log;
 
 class OrderService
 {
+    // the gateway arrives already built — the service never knows which company it is
+    public function __construct(
+        private readonly PaymentGateway $gateway,
+    ) {}
+
     public function create(User $user, array $data): Order
     {
-        // fetch the ticket — findOrFail gives a 404 if the id is valid-shaped but doesn't exist
-        // this is why the Form Request didn't need an exists: rule
         $ticket = Ticket::with('event')->findOrFail($data['ticket_id']);
 
         $quantity = $data['quantity'];
 
-        // the availability check — throws rather than returning false
         if ($ticket->quantity_available < $quantity) {
             throw new InsufficientTicketsException($quantity, $ticket->quantity_available);
         }
 
-        // the total is computed here, never taken from the client
         $total = $this->calculateTotal($ticket->price, $quantity);
 
         Log::info('Order attempt', [
@@ -34,12 +37,15 @@ class OrderService
             'total'     => $total,
         ]);
 
-        // both writes succeed together or neither happens
-        // this is why we configured a replica set on day one
-        return DB::connection('mongodb')->transaction(function () use ($user, $ticket, $quantity, $total) {
+        // capture the result instead of returning directly
+        $order = DB::connection('mongodb')->transaction(function () use ($user, $ticket, $quantity, $total) {
 
-            // decrement stock atomically — Mongo performs the subtraction itself
             $ticket->decrement('quantity_available', $quantity);
+
+            $reference = $this->gateway->charge($total, [
+                'user_id'   => $user->id,
+                'ticket_id' => $ticket->id,
+            ]);
 
             $event = $ticket->event;
 
@@ -48,7 +54,6 @@ class OrderService
                 'event_id'  => $event->id,
                 'ticket_id' => $ticket->id,
 
-                // frozen copies — this order must always show what was true today
                 'event_name'  => $event->name,
                 'event_date'  => $event->date,
                 'ticket_type' => $ticket->type,
@@ -56,13 +61,23 @@ class OrderService
 
                 'quantity' => $quantity,
                 'total'    => $total,
-                'status'   => Order::STATUS_PENDING,
+
+                'status'  => Order::STATUS_PAID,
+                'paid_at' => now(),
+
+                'payment_gateway'   => $this->gateway->name(),
+                'payment_reference' => $reference,
             ]);
         });
+
+        // dispatched AFTER the transaction commits
+        // inside it, a rollback would leave a job referencing an order that no longer exists
+        SendOrderConfirmationEmail::dispatch($order);
+
+        return $order;
     }
 
     // extracted so it can be unit tested without a database
-    // step 6 asks for exactly this: "one unit test for your total-calculation method"
     public function calculateTotal(float $unitPrice, int $quantity): float
     {
         return round($unitPrice * $quantity, 2);

@@ -31,6 +31,13 @@ return [
 
     'connections' => [
 
+    'mongodb' => [
+            'driver'      => 'mongodb',
+            'connection'  => 'mongodb',
+            'collection'  => 'jobs',
+            'queue'       => 'default',
+            'retry_after' => 90,
+        ],
         'sync' => [
             'driver' => 'sync',
         ],
