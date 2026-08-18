@@ -5,27 +5,36 @@ namespace App\Http\Controllers\Api;
 use App\Http\Controllers\Controller;
 use App\Http\Requests\StoreOrderRequest;
 use App\Http\Resources\OrderResource;
-use App\Models\User;
+use App\Models\Order;
 use App\Services\OrderService;
 use Illuminate\Http\JsonResponse;
+use Illuminate\Http\Request;
+use Illuminate\Http\Resources\Json\AnonymousResourceCollection;
 
 class OrderController extends Controller
 {
-    // constructor injection — Laravel resolves OrderService automatically
-    // never `new OrderService()` inside a method: that makes the class untestable
     public function __construct(
         private readonly OrderService $orderService,
     ) {}
 
+    // GET /api/orders — only the authenticated user's own orders
+    public function index(Request $request): AnonymousResourceCollection
+    {
+        // forUser is the scope defined on the Order model.
+        // this line is the entire authorisation rule: you see yours, nobody else's
+        $orders = Order::forUser($request->user()->id)
+            ->orderByDesc('created_at')
+            ->paginate(15);
+
+        return OrderResource::collection($orders);
+    }
+
     // POST /api/orders
     public function store(StoreOrderRequest $request): JsonResponse
     {
-        // temporary until step 5 — the real user will come from the token
-        $user = User::first();
-
-        // validated() returns only the fields that passed the rules
-        // a client sending "total" or "status" gets them silently discarded here
-        $order = $this->orderService->create($user, $request->validated());
+        // the real authenticated user, read from the token
+        // was User::first(), which attributed every order to the same person
+        $order = $this->orderService->create($request->user(), $request->validated());
 
         return (new OrderResource($order))
             ->response()

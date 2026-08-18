@@ -7,6 +7,8 @@ use App\Http\Resources\EventResource;
 use App\Models\Event;
 use Illuminate\Http\Request;
 use Illuminate\Http\Resources\Json\AnonymousResourceCollection;
+use App\Http\Requests\StoreEventRequest;
+use Illuminate\Http\JsonResponse;
 
 class EventController extends Controller
 {
@@ -35,5 +37,14 @@ class EventController extends Controller
         $event = Event::with('tickets')->findOrFail($id);
 
         return new EventResource($event);
+    }
+    // POST /api/events — admins only, enforced by the route's scope middleware
+    public function store(StoreEventRequest $request): JsonResponse
+    {
+        $event = Event::create($request->validated());
+
+        return (new EventResource($event))
+            ->response()
+            ->setStatusCode(201);
     }
 }
