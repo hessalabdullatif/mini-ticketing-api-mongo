@@ -3,6 +3,7 @@
 namespace App\Services;
 
 use App\Contracts\PaymentGateway;
+use App\Exceptions\EventNotOnSaleException;
 use App\Exceptions\InsufficientTicketsException;
 use App\Jobs\SendOrderConfirmationEmail;
 use App\Models\Order;
@@ -21,6 +22,13 @@ class OrderService
     public function create(User $user, array $data): Order
     {
         $ticket = Ticket::with('event')->findOrFail($data['ticket_id']);
+
+        // ← NEW — refuse to sell for a paused or cancelled event.
+        // checked before stock, because "this event is cancelled" is more
+        // useful to the buyer than "only 3 tickets left"
+        if (! $ticket->event->isOnSale()) {
+            throw new EventNotOnSaleException($ticket->event);
+        }
 
         $quantity = $data['quantity'];
 

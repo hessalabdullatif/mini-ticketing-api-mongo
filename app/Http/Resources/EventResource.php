@@ -1,35 +1,33 @@
 <?php
 
-namespace App\Http\Resources;
+namespace App\Http\Requests;
 
-use Illuminate\Http\Request;
-use Illuminate\Http\Resources\Json\JsonResource;
+use Illuminate\Foundation\Http\FormRequest;
 
-class EventResource extends JsonResource
+class StoreEventRequest extends FormRequest
 {
-    // defines exactly what the API returns for one event
-    // the model holds everything; this decides what the outside world sees
-    public function toArray(Request $request): array
+    // authorisation is handled by the route's scope middleware, not here
+    public function authorize(): bool
+    {
+        return true;
+    }
+
+    public function rules(): array
     {
         return [
-            // Mongo's _id is an ObjectId — cast to string so it serialises cleanly in JSON
-            'id'      => (string) $this->id,
+            'name' => ['required', 'string', 'max:255'],
+            'city' => ['required', 'string', 'max:100'],
 
-            'name'    => $this->name,
-            'city'    => $this->city,
+            // after:today stops anyone creating an event in the past
+            'date' => ['required', 'date', 'after:today'],
 
-            // format explicitly rather than letting Carbon decide
-            // otherwise you get "2026-11-20T00:00:00.000000Z" which clients rarely want
-            'date'    => $this->date->format('Y-m-d'),
+            // optional — defaults to 'active' via the model's $attributes.
+            // Mongo would happily store status: "watermelon", so this rule
+            // is the only thing keeping the values valid
+            'status' => ['sometimes', 'string', 'in:active,paused,cancelled'],   // ← NEW
 
-            // the flexible field — passed through as-is
-            'meta'    => $this->meta,
-
-            // only included when the relation was actually loaded
-            // without whenLoaded, calling $event->tickets here would fire a query per event → N+1
-            'tickets' => TicketResource::collection($this->whenLoaded('tickets')),
-
-            'created_at' => $this->created_at->toIso8601String(),
+            // meta is free-form — that's the entire point of it
+            'meta' => ['sometimes', 'array'],
         ];
     }
 }

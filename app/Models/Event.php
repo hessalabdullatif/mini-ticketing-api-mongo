@@ -7,6 +7,12 @@ use MongoDB\Laravel\Relations\HasMany;
 
 class Event extends Model
 {
+
+    //the allowed states, as constants rather than loose strings
+    const STATUS_ACTIVE    = 'active';     // on sale
+    const STATUS_PAUSED    = 'paused';     // temporarily not selling
+    const STATUS_CANCELLED = 'cancelled';
+
     // the connection defined in config/database.php
     protected $connection = 'mongodb';
 
@@ -17,7 +23,8 @@ class Event extends Model
         'name',
         'city',
         'date',
-        'meta',    //the flexible field
+        'meta', 
+        'status',   //the flexible field
     ];
 
     protected $casts = [
@@ -28,11 +35,23 @@ class Event extends Model
     // a real array [] not the string '[]', because we're not casting
     protected $attributes = [
         'meta' => [],
+        'status' => self::STATUS_ACTIVE,
     ];
 
     // each event has several ticket types — Laravel infers the event_id key
     public function tickets(): HasMany
     {
         return $this->hasMany(Ticket::class);
+    }
+    //only events currently selling
+    public function scopeActive($query)
+    {
+        return $query->where('status', self::STATUS_ACTIVE);
+    }
+
+    //centralised so the rule lives in one place
+    public function isOnSale(): bool
+    {
+        return $this->status === self::STATUS_ACTIVE;
     }
 }
