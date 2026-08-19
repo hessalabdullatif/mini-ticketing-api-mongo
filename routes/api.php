@@ -32,3 +32,6 @@ Route::get('/orders', [OrderController::class, 'index'])->middleware('auth:api')
 
   Route::post('/events', [EventController::class, 'store'])
     ->middleware(['auth:api', CheckToken::using('events:create')]);
+
+    Route::post('/orders/{id}/refund', [OrderController::class, 'refund'])
+    ->middleware('auth:api');

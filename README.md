@@ -268,3 +268,4 @@ Flagged as identified, not covered. The right tool is `k6` or similar, in a diff
  
 **Admin management.** Admins can create events but not update or delete them. The `events:manage` scope is declared but unused. There are no ticket-type endpoints at all.
  
+ API documentation is available at `/api/documentation` once the server is running.

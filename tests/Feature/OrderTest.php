@@ -237,4 +237,86 @@ class OrderTest extends TestCase
             ->assertStatus(200)
             ->assertJsonCount(0, 'data');
     }
+    // ===== refunds =====
+
+    #[Test]
+    public function a_paid_order_can_be_refunded(): void
+    {
+        $this->withToken($this->tokenFor($this->user))
+            ->postJson('/api/orders', $this->orderPayload(['quantity' => 2]));
+
+        $order = Order::first();
+
+        $this->app['auth']->forgetGuards();
+
+        $this->withToken($this->tokenFor($this->user))
+            ->postJson("/api/orders/{$order->id}/refund", ['reason' => 'Changed my mind'])
+            ->assertStatus(200)
+            ->assertJsonPath('data.status', 'refunded');
+    }
+
+    #[Test]
+    public function refunding_returns_the_tickets_to_stock(): void
+    {
+        // 10 in stock, buy 3, refund — should be back to 10
+        $this->withToken($this->tokenFor($this->user))
+            ->postJson('/api/orders', $this->orderPayload(['quantity' => 3]));
+
+        $this->assertSame(7, $this->ticket->fresh()->quantity_available);
+
+        $order = Order::first();
+
+        $this->app['auth']->forgetGuards();
+
+        $this->withToken($this->tokenFor($this->user))
+            ->postJson("/api/orders/{$order->id}/refund");
+
+        $this->assertSame(10, $this->ticket->fresh()->quantity_available);
+    }
+
+    #[Test]
+    public function an_order_cannot_be_refunded_twice(): void
+    {
+        $this->withToken($this->tokenFor($this->user))
+            ->postJson('/api/orders', $this->orderPayload());
+
+        $order = Order::first();
+
+        $this->app['auth']->forgetGuards();
+
+        $this->withToken($this->tokenFor($this->user))
+            ->postJson("/api/orders/{$order->id}/refund");
+
+        $this->app['auth']->forgetGuards();
+
+        // second attempt — and critically, stock must not go up twice
+        $this->withToken($this->tokenFor($this->user))
+            ->postJson("/api/orders/{$order->id}/refund")
+            ->assertStatus(422);
+
+        $this->assertSame(10, $this->ticket->fresh()->quantity_available);
+    }
+
+    #[Test]
+    public function you_cannot_refund_someone_elses_order(): void
+    {
+        $other = User::create([
+            'name'     => 'Someone Else',
+            'email'    => 'other@test.com',
+            'password' => 'password123',
+            'role'     => 'user',
+        ]);
+
+        $this->withToken($this->tokenFor($this->user))
+            ->postJson('/api/orders', $this->orderPayload());
+
+        $order = Order::first();
+
+        $this->app['auth']->forgetGuards();
+
+        // 404, not 403 — we don't confirm the order even exists
+        $this->withToken($this->tokenFor($other))
+            ->postJson("/api/orders/{$order->id}/refund")
+            ->assertStatus(404);
+    }
 }

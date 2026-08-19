@@ -10,6 +10,7 @@ class Order extends Model
     // status constants — avoids typos and centralises the allowed values
     const STATUS_PENDING = 'pending';
     const STATUS_PAID    = 'paid';
+     const STATUS_REFUNDED = 'refunded'; 
 
     protected $connection = 'mongodb';
     protected $table      = 'orders';
@@ -18,6 +19,8 @@ class Order extends Model
         'user_id',
         'event_id',
         'ticket_id',
+        'refunded_at',       
+        'refund_reason', 
 
         // frozen copies — the receipt must show what was true at purchase time
         'event_name',
@@ -40,6 +43,7 @@ class Order extends Model
         'total'      => 'float',
         'event_date' => 'date',
         'paid_at'    => 'datetime',
+        'refunded_at' => 'datetime',
     ];
 
     // a new order always starts unpaid
@@ -75,6 +79,11 @@ class Order extends Model
 
     // convenience check instead of comparing strings at call sites
     public function isPaid(): bool
+    {
+        return $this->status === self::STATUS_PAID;
+    }
+    // an order can only be refunded once, and only if it was paid
+    public function isRefundable(): bool
     {
         return $this->status === self::STATUS_PAID;
     }

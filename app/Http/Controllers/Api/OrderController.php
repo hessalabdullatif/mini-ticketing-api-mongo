@@ -79,4 +79,18 @@ class OrderController extends Controller
             ->response()
             ->setStatusCode(201);
     }
+    // POST /api/orders/{id}/refund
+    public function refund(Request $request, string $id): JsonResponse
+    {
+        // scoped to the authenticated user — you can only refund your own orders.
+        // someone else's order returns 404, as though it doesn't exist
+        $order = Order::forUser($request->user()->id)->findOrFail($id);
+
+        $refunded = $this->orderService->refund(
+            $order,
+            $request->input('reason')
+        );
+
+        return (new OrderResource($refunded))->response();
+    }
 }

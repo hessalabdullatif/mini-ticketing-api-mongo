@@ -6,6 +6,7 @@ use App\Contracts\PaymentGateway;
 use App\Exceptions\EventHasPassedException;
 use App\Exceptions\EventNotOnSaleException;
 use App\Exceptions\InsufficientTicketsException;
+use App\Exceptions\OrderNotRefundableException;
 use App\Jobs\SendOrderConfirmationEmail;
 use App\Models\Order;
 use App\Models\Ticket;
@@ -91,6 +92,38 @@ class OrderService
         SendOrderConfirmationEmail::dispatch($order);
 
         return $order;
+    }
+
+    // ← NEW — refunds an order and puts the tickets back
+    public function refund(Order $order, ?string $reason = null): Order
+    {
+        // an order can only be refunded once, and only if it was paid
+        if (! $order->isRefundable()) {
+            throw new OrderNotRefundableException($order);
+        }
+
+        Log::info('Refund attempt', [
+            'order_id' => $order->id,
+            'total'    => $order->total,
+        ]);
+
+        // both writes succeed together or neither does — the same reason we
+        // needed a replica set on day one. marking the order refunded but
+        // failing to return stock would lose those tickets permanently
+        return DB::connection('mongodb')->transaction(function () use ($order, $reason) {
+
+            // increment is decrement's mirror — Mongo's atomic $inc, other direction
+            Ticket::where('_id', $order->ticket_id)
+                ->increment('quantity_available', $order->quantity);
+
+            $order->update([
+                'status'        => Order::STATUS_REFUNDED,
+                'refunded_at'   => now(),
+                'refund_reason' => $reason,
+            ]);
+
+            return $order->fresh();
+        });
     }
 
     // extracted so it can be unit tested without a database
