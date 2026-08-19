@@ -3,6 +3,7 @@
 namespace App\Services;
 
 use App\Contracts\PaymentGateway;
+use App\Exceptions\EventHasPassedException;
 use App\Exceptions\EventNotOnSaleException;
 use App\Exceptions\InsufficientTicketsException;
 use App\Jobs\SendOrderConfirmationEmail;
@@ -23,11 +24,18 @@ class OrderService
     {
         $ticket = Ticket::with('event')->findOrFail($data['ticket_id']);
 
-        // ← NEW — refuse to sell for a paused or cancelled event.
+        // refuse to sell for a paused or cancelled event.
         // checked before stock, because "this event is cancelled" is more
         // useful to the buyer than "only 3 tickets left"
         if (! $ticket->event->isOnSale()) {
             throw new EventNotOnSaleException($ticket->event);
+        }
+
+        // refuse to sell for an event that already happened.
+        // StoreEventRequest has after:today, but that only guards creation.
+        // an event created legitimately becomes past simply by time passing
+        if ($ticket->event->hasPassed()) {
+            throw new EventHasPassedException($ticket->event);
         }
 
         $quantity = $data['quantity'];

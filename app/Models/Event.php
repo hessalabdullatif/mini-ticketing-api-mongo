@@ -54,4 +54,10 @@ class Event extends Model
     {
         return $this->status === self::STATUS_ACTIVE;
     }
+    //has the event date already passed?
+    // isPast() comes from Carbon, available because of the 'date' cast
+    public function hasPassed(): bool
+    {
+        return $this->date->isPast();
+}
 }
