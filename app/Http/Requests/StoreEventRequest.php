@@ -21,6 +21,11 @@ class StoreEventRequest extends FormRequest
             // after:today stops anyone creating an event in the past
             'date' => ['required', 'date', 'after:today'],
 
+            // optional — defaults to 'active' via the model's $attributes.
+            // Mongo would happily store status: "watermelon", so this rule
+            // is the only thing keeping the values valid
+            'status' => ['sometimes', 'string', 'in:active,paused,cancelled'],
+
             // meta is free-form — that's the entire point of it
             'meta' => ['sometimes', 'array'],
         ];

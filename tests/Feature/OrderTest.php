@@ -231,8 +231,6 @@ class OrderTest extends TestCase
               // from its own token rather than reusing the first request's identity
         $this->app['auth']->forgetGuards();
 
-     
-
         // the other user should see none of it
         $this->withToken($this->tokenFor($other))
             ->getJson('/api/orders')
