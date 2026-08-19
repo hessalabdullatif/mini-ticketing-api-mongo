@@ -9,9 +9,27 @@ use Illuminate\Http\Request;
 use Illuminate\Http\Resources\Json\AnonymousResourceCollection;
 use App\Http\Requests\StoreEventRequest;
 use Illuminate\Http\JsonResponse;
-
+use OpenApi\Attributes as OA;
 class EventController extends Controller
 {
+        #[OA\Get(
+        path: '/events',
+        summary: 'List events',
+        description: 'Public endpoint. Optionally filter by city.',
+        tags: ['Events'],
+        parameters: [
+            new OA\Parameter(
+                name: 'city',
+                in: 'query',
+                required: false,
+                description: 'Filter events by city',
+                schema: new OA\Schema(type: 'string', example: 'Riyadh')
+            ),
+        ],
+        responses: [
+            new OA\Response(response: 200, description: 'A paginated list of events'),
+        ]
+    )]
     // GET /api/events  — optionally filtered by ?city=Riyadh
     public function index(Request $request): AnonymousResourceCollection
     {
@@ -28,7 +46,26 @@ class EventController extends Controller
 
         return EventResource::collection($events);
     }
-
+#[OA\Get(
+        path: '/events/{id}',
+        summary: 'Get one event',
+        description: 'Public. Includes the event\'s ticket types.',
+        tags: ['Events'],
+        parameters: [
+            new OA\Parameter(
+                name: 'id',
+                in: 'path',
+                required: true,
+                description: 'The event id',
+                schema: new OA\Schema(type: 'string', example: '6a842696e4e5ed74df0bee52')
+            ),
+        ],
+        responses: [
+            new OA\Response(response: 200, description: 'The event with its tickets'),
+            new OA\Response(response: 404, description: 'Event not found'),
+        ]
+    )]
+  
     // GET /api/events/{id}
     public function show(string $id): EventResource
     {
@@ -38,6 +75,38 @@ class EventController extends Controller
 
         return new EventResource($event);
     }
+    #[OA\Post(
+        path: '/events',
+        summary: 'Create an event',
+        description: 'Requires a token carrying the events:create scope. A regular user\'s token receives 403.',
+        tags: ['Events'],
+        security: [['bearerAuth' => []]],
+        requestBody: new OA\RequestBody(
+            required: true,
+            content: new OA\JsonContent(
+                required: ['name', 'city', 'date'],
+                properties: [
+                    new OA\Property(property: 'name', type: 'string', example: 'Riyadh Season Concert'),
+                    new OA\Property(property: 'city', type: 'string', example: 'Riyadh'),
+                    new OA\Property(property: 'date', type: 'string', format: 'date', example: '2026-11-20'),
+                    new OA\Property(property: 'status', type: 'string', enum: ['active', 'paused', 'cancelled'], example: 'active'),
+                    new OA\Property(
+                        property: 'meta',
+                        type: 'object',
+                        description: 'Free-form data that varies by event type',
+                        example: ['artist' => 'Mohammed Abdu', 'venue' => 'Mrsool Park']
+                    ),
+                ]
+            )
+        ),
+        responses: [
+            new OA\Response(response: 201, description: 'Event created'),
+            new OA\Response(response: 401, description: 'Unauthenticated'),
+            new OA\Response(response: 403, description: 'Token lacks the events:create scope'),
+            new OA\Response(response: 422, description: 'Validation failed'),
+        ]
+    )]
+   
     // POST /api/events — admins only, enforced by the route's scope middleware
     public function store(StoreEventRequest $request): JsonResponse
     {

@@ -12,9 +12,32 @@ use Illuminate\Http\Request;
 use Illuminate\Support\Facades\Auth;
 use Illuminate\Support\Facades\Log;
 use Illuminate\Validation\ValidationException;
-
+use OpenApi\Attributes as OA;
 class AuthController extends Controller
 {
+    #[OA\Post(
+        path: '/register',
+        summary: 'Register a new user',
+        description: 'Public. Creates a user with the "user" role and returns an access token. The role is assigned server-side and cannot be set by the client.',
+        tags: ['Auth'],
+        requestBody: new OA\RequestBody(
+            required: true,
+            content: new OA\JsonContent(
+                required: ['name', 'email', 'password', 'password_confirmation'],
+                properties: [
+                    new OA\Property(property: 'name', type: 'string', example: 'Hessa'),
+                    new OA\Property(property: 'email', type: 'string', format: 'email', example: 'hessa@example.com'),
+                    new OA\Property(property: 'password', type: 'string', format: 'password', example: 'password123'),
+                    new OA\Property(property: 'password_confirmation', type: 'string', format: 'password', example: 'password123'),
+                ]
+            )
+        ),
+        responses: [
+            new OA\Response(response: 201, description: 'User created, token returned'),
+            new OA\Response(response: 422, description: 'Validation failed — email already taken or password too short'),
+        ]
+    )]
+   
     // POST /api/register
     public function register(RegisterRequest $request): JsonResponse
     {
@@ -37,6 +60,26 @@ class AuthController extends Controller
             'token_type'   => 'Bearer',
         ], 201);
     }
+        #[OA\Post(
+        path: '/login',
+        summary: 'Log in',
+        description: 'Public. Returns an access token whose scopes depend on the user role.',
+        tags: ['Auth'],
+        requestBody: new OA\RequestBody(
+            required: true,
+            content: new OA\JsonContent(
+                required: ['email', 'password'],
+                properties: [
+                    new OA\Property(property: 'email', type: 'string', format: 'email', example: 'hessa@example.com'),
+                    new OA\Property(property: 'password', type: 'string', format: 'password', example: 'password123'),
+                ]
+            )
+        ),
+        responses: [
+            new OA\Response(response: 200, description: 'Token returned'),
+            new OA\Response(response: 422, description: 'Credentials do not match'),
+        ]
+    )]
 
     // POST /api/login
     public function login(LoginRequest $request): JsonResponse
@@ -65,7 +108,18 @@ class AuthController extends Controller
             'access_token' => $token,
             'token_type'   => 'Bearer',
         ]);
-    }
+    } 
+     #[OA\Post(
+        path: '/logout',
+        summary: 'Log out',
+        description: 'Revokes only the token used for this request, not every device.',
+        tags: ['Auth'],
+        security: [['bearerAuth' => []]],
+        responses: [
+            new OA\Response(response: 200, description: 'Logged out'),
+            new OA\Response(response: 401, description: 'Unauthenticated'),
+        ]
+    )]
 
     // POST /api/logout
     public function logout(Request $request): JsonResponse

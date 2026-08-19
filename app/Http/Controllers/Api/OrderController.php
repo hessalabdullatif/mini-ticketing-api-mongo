@@ -10,12 +10,24 @@ use App\Services\OrderService;
 use Illuminate\Http\JsonResponse;
 use Illuminate\Http\Request;
 use Illuminate\Http\Resources\Json\AnonymousResourceCollection;
-
+use OpenApi\Attributes as OA;
 class OrderController extends Controller
 {
     public function __construct(
         private readonly OrderService $orderService,
     ) {}
+    #[OA\Get(
+        path: '/orders',
+        summary: 'List my orders',
+        description: 'Returns only the authenticated user\'s own orders, read from the token. One user can never see another\'s.',
+        tags: ['Orders'],
+        security: [['bearerAuth' => []]],
+        responses: [
+            new OA\Response(response: 200, description: 'A paginated list of your orders'),
+            new OA\Response(response: 401, description: 'Unauthenticated'),
+        ]
+    )]
+  
 
     // GET /api/orders — only the authenticated user's own orders
     public function index(Request $request): AnonymousResourceCollection
@@ -28,6 +40,33 @@ class OrderController extends Controller
 
         return OrderResource::collection($orders);
     }
+    #[OA\Post(
+        path: '/orders',
+        summary: 'Place an order',
+        description: 'The total is computed server-side from the ticket price. Any total, status or user_id sent by the client is discarded.',
+        tags: ['Orders'],
+        security: [['bearerAuth' => []]],
+        requestBody: new OA\RequestBody(
+            required: true,
+            content: new OA\JsonContent(
+                required: ['event_id', 'ticket_id', 'quantity'],
+                properties: [
+                    new OA\Property(property: 'event_id', type: 'string', example: '6a842696e4e5ed74df0bee52'),
+                    new OA\Property(property: 'ticket_id', type: 'string', example: '6a84285ecff6bfe1600b0c72'),
+                    new OA\Property(property: 'quantity', type: 'integer', minimum: 1, maximum: 10, example: 2),
+                ]
+            )
+        ),
+        responses: [
+            new OA\Response(response: 201, description: 'Order created and paid'),
+            new OA\Response(response: 401, description: 'Unauthenticated'),
+            new OA\Response(
+                response: 422,
+                description: 'Not enough tickets, or the event is paused, cancelled, or already past'
+            ),
+        ]
+    )]
+  
 
     // POST /api/orders
     public function store(StoreOrderRequest $request): JsonResponse
