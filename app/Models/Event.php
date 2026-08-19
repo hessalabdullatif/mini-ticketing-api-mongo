@@ -7,6 +7,10 @@ use MongoDB\Laravel\Relations\HasMany;
 
 class Event extends Model
 {
+      public function orders(): HasMany
+    {
+        return $this->hasMany(Order::class);
+    }
 
     //the allowed states, as constants rather than loose strings
     const STATUS_ACTIVE    = 'active';     // on sale

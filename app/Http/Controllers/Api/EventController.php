@@ -10,6 +10,7 @@ use Illuminate\Http\Resources\Json\AnonymousResourceCollection;
 use App\Http\Requests\StoreEventRequest;
 use Illuminate\Http\JsonResponse;
 use OpenApi\Attributes as OA;
+use App\Http\Requests\UpdateEventRequest;
 class EventController extends Controller
 {
         #[OA\Get(
@@ -115,5 +116,37 @@ class EventController extends Controller
         return (new EventResource($event))
             ->response()
             ->setStatusCode(201);
+    }
+    // PATCH /api/events/{id} — admins only, via the events:manage scope
+    public function update(UpdateEventRequest $request, string $id): EventResource
+    {
+        $event = Event::findOrFail($id);
+
+        // validated() returns only fields that were actually sent,
+        // so absent fields are left alone rather than overwritten with null
+        $event->update($request->validated());
+
+        return new EventResource($event->fresh());
+    }
+
+    // DELETE /api/events/{id}
+    public function destroy(string $id): JsonResponse
+    {
+        $event = Event::findOrFail($id);
+
+        // refuse to delete an event people have already paid for.
+        // cancelling is the correct action there — it preserves the record
+        // and lets those orders be refunded
+        if ($event->orders()->exists()) {
+            return response()->json([
+                'message' => 'This event has orders and cannot be deleted. Cancel it instead.',
+            ], 422);
+        }
+
+        // ticket types are meaningless without their event
+        $event->tickets()->delete();
+        $event->delete();
+
+        return response()->json(null, 204);
     }
 }

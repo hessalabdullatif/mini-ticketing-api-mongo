@@ -6,6 +6,7 @@ use Illuminate\Http\Request;
 use Illuminate\Support\Facades\Route;
 use App\Http\Controllers\Api\AuthController;
 use Laravel\Passport\Http\Middleware\CheckToken;
+use App\Http\Controllers\Api\TicketController;
 
 // created by install:api --passport — returns the authenticated user
 // we'll use this in step 5 to verify tokens work
@@ -35,3 +36,18 @@ Route::get('/orders', [OrderController::class, 'index'])->middleware('auth:api')
 
     Route::post('/orders/{id}/refund', [OrderController::class, 'refund'])
     ->middleware('auth:api');
+
+    Route::patch('/events/{id}', [EventController::class, 'update'])
+    ->middleware(['auth:api', CheckToken::using('events:manage')]);
+
+Route::delete('/events/{id}', [EventController::class, 'destroy'])
+    ->middleware(['auth:api', CheckToken::using('events:manage')]);
+
+    Route::post('/events/{eventId}/tickets', [TicketController::class, 'store'])
+    ->middleware(['auth:api', CheckToken::using('events:manage')]);
+
+Route::patch('/tickets/{id}', [TicketController::class, 'update'])
+    ->middleware(['auth:api', CheckToken::using('events:manage')]);
+
+Route::delete('/tickets/{id}', [TicketController::class, 'destroy'])
+    ->middleware(['auth:api', CheckToken::using('events:manage')]);
