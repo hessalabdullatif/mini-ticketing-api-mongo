@@ -14,7 +14,7 @@ This is a rebuild of an earlier project that used MySQL and Sanctum. The domain 
 | Database | MongoDB 8 (single-node replica set) |
 | Auth | Laravel Passport 13 — OAuth2 with scopes |
 | Docs | Swagger / OpenAPI 3.0 via l5-swagger |
-| Tests | PHPUnit — 40 tests |
+| Tests | PHPUnit — 58 tests |
  
 ---
  
@@ -84,7 +84,12 @@ API docs at `/api/documentation`.
 | `POST` | `/api/events` | `events:create` | Admin only |
 | `GET` | `/api/orders` | token | Only your own orders |
 | `POST` | `/api/orders` | token | Total computed server-side |
- 
+| `PATCH` | `/api/events/{id}` | `events:manage` | Partial update |
+| `DELETE` | `/api/events/{id}` | `events:manage` | Blocked if the event has orders |
+| `POST` | `/api/events/{id}/tickets` | `events:manage` | Create a ticket type |
+| `PATCH` | `/api/tickets/{id}` | `events:manage` | Update price or stock |
+| `DELETE` | `/api/tickets/{id}` | `events:manage` | Blocked if it has orders |
+| `POST` | `/api/orders/{id}/refund` | token | Returns stock atomically |
 ---
  
 ## The layers, and why
@@ -228,8 +233,8 @@ It wraps each test in a SQL transaction and rolls back. `tests/TestCase.php` dro
 php artisan test
 ```
  
-40 tests across four files.
- 
+58 tests across five files.
+
 **`OrderServiceTest`** (unit) — `calculateTotal` in isolation, no database or HTTP. Includes float drift: `19.99 * 3` is `59.970000000000006` in raw PHP, and `round()` is what keeps stored totals honest.
  
 **`OrderTest`** — stock decrement, financial integrity, security, boundaries, auth scoping.
@@ -238,6 +243,8 @@ php artisan test
  
 **`AuthTest`** — registration, duplicate email, hashing, login, and decoding the JWT to prove scopes travel inside the token.
  
+**`AdminTest`** — event updates and deletion, ticket type management, and that a price change leaves existing orders untouched.
+
 ### Two real bugs the tests caught
  
 Both were invisible through manual testing.
@@ -262,10 +269,31 @@ Flagged as identified, not covered. The right tool is `k6` or similar, in a diff
  
 ---
  
+## Admin management
+
+Admins hold a token carrying `events:create` and `events:manage`, and can:
+
+- create, update and delete events
+- create, update and delete ticket types
+
+**Deletion is deliberately restricted.** An event or ticket type that has orders cannot be deleted — doing so would orphan those orders and erase a financial record. Cancelling the event is the correct action instead: it preserves the record, stops new sales, and lets existing orders be refunded.
+
+**Changing a ticket price never affects existing orders.** They store the price paid at purchase time, so a receipt from last month still shows what was actually charged.
+
+---
+
+## Refunds
+
+`POST /api/orders/{id}/refund` marks an order refunded and returns its tickets to stock.
+
+Both writes happen inside a transaction. Marking the order without returning stock would lose those tickets permanently; returning stock without marking the order would allow an unlimited refund loop.
+
+Scoped to the authenticated user — someone else's order returns `404` rather than `403`, so the API never confirms an order exists to someone who shouldn't see it.
+
+---
+
 ## Known gaps
- 
-**Refunds.** Cancelling an event leaves existing orders `paid` and never returns their stock.
- 
-**Admin management.** Admins can create events but not update or delete them. The `events:manage` scope is declared but unused. There are no ticket-type endpoints at all.
- 
- API documentation is available at `/api/documentation` once the server is running.
+
+**Load testing.** Concurrency protection is in the code, but proving it needs a tool that fires many parallel requests. See the Concurrency section above.
+
+**Pending orders.** Every order is currently marked paid immediately, so there are no pending orders to expire. Separating payment from order creation would be the prerequisite for a scheduled cleanup command.
