@@ -1,33 +1,36 @@
 <?php
 
-namespace App\Http\Requests;
+namespace App\Http\Resources;
 
-use Illuminate\Foundation\Http\FormRequest;
+use Illuminate\Http\Request;
+use Illuminate\Http\Resources\Json\JsonResource;
 
-class StoreEventRequest extends FormRequest
+class EventResource extends JsonResource
 {
-    // authorisation is handled by the route's scope middleware, not here
-    public function authorize(): bool
-    {
-        return true;
-    }
-
-    public function rules(): array
+    // defines exactly what the API returns for one event
+    // the model holds everything; this decides what the outside world sees
+    public function toArray(Request $request): array
     {
         return [
-            'name' => ['required', 'string', 'max:255'],
-            'city' => ['required', 'string', 'max:100'],
+            // Mongo's _id is an ObjectId — cast to string so it serialises cleanly in JSON
+            'id'      => (string) $this->id,
 
-            // after:today stops anyone creating an event in the past
-            'date' => ['required', 'date', 'after:today'],
+            'name'    => $this->name,
+            'city'    => $this->city,
 
-            // optional — defaults to 'active' via the model's $attributes.
-            // Mongo would happily store status: "watermelon", so this rule
-            // is the only thing keeping the values valid
-            'status' => ['sometimes', 'string', 'in:active,paused,cancelled'],   // ← NEW
+            // active | paused | cancelled — buyers need to know before trying to order
+            'status'  => $this->status,
 
-            // meta is free-form — that's the entire point of it
-            'meta' => ['sometimes', 'array'],
+            // format explicitly rather than letting Carbon decide
+            'date'    => $this->date->format('Y-m-d'),
+
+            // the flexible field — passed through as-is
+            'meta'    => $this->meta,
+
+            // only included when the relation was actually loaded — guards against N+1
+            'tickets' => TicketResource::collection($this->whenLoaded('tickets')),
+
+            'created_at' => $this->created_at->toIso8601String(),
         ];
     }
 }
