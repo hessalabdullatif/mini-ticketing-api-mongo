@@ -117,6 +117,40 @@ class EventController extends Controller
             ->response()
             ->setStatusCode(201);
     }
+    #[OA\Patch(
+        path: '/events/{id}',
+        summary: 'Update an event',
+        description: 'Partial update — only the fields you send are changed. Requires the events:manage scope.',
+        tags: ['Events'],
+        security: [['bearerAuth' => []]],
+        parameters: [
+            new OA\Parameter(
+                name: 'id',
+                in: 'path',
+                required: true,
+                schema: new OA\Schema(type: 'string')
+            ),
+        ],
+        requestBody: new OA\RequestBody(
+            required: true,
+            content: new OA\JsonContent(
+                properties: [
+                    new OA\Property(property: 'name', type: 'string', example: 'Riyadh Season Concert'),
+                    new OA\Property(property: 'city', type: 'string', example: 'Riyadh'),
+                    new OA\Property(property: 'date', type: 'string', format: 'date', example: '2026-11-20'),
+                    new OA\Property(property: 'status', type: 'string', enum: ['active', 'paused', 'cancelled']),
+                    new OA\Property(property: 'meta', type: 'object'),
+                ]
+            )
+        ),
+        responses: [
+            new OA\Response(response: 200, description: 'Event updated'),
+            new OA\Response(response: 403, description: 'Token lacks the events:manage scope'),
+            new OA\Response(response: 404, description: 'Event not found'),
+            new OA\Response(response: 422, description: 'Validation failed'),
+        ]
+    )]
+  
     // PATCH /api/events/{id} — admins only, via the events:manage scope
     public function update(UpdateEventRequest $request, string $id): EventResource
     {
@@ -128,6 +162,27 @@ class EventController extends Controller
 
         return new EventResource($event->fresh());
     }
+    #[OA\Delete(
+        path: '/events/{id}',
+        summary: 'Delete an event',
+        description: 'Only possible when the event has no orders. Cancel it instead — deleting would orphan those orders and erase a financial record.',
+        tags: ['Events'],
+        security: [['bearerAuth' => []]],
+        parameters: [
+            new OA\Parameter(
+                name: 'id',
+                in: 'path',
+                required: true,
+                schema: new OA\Schema(type: 'string')
+            ),
+        ],
+        responses: [
+            new OA\Response(response: 204, description: 'Deleted, along with its ticket types'),
+            new OA\Response(response: 403, description: 'Token lacks the events:manage scope'),
+            new OA\Response(response: 422, description: 'The event has orders'),
+        ]
+    )]
+  
 
     // DELETE /api/events/{id}
     public function destroy(string $id): JsonResponse

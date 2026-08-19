@@ -79,6 +79,36 @@ class OrderController extends Controller
             ->response()
             ->setStatusCode(201);
     }
+    #[OA\Post(
+        path: '/orders/{id}/refund',
+        summary: 'Refund an order',
+        description: 'Marks the order refunded and returns the tickets to stock, atomically. Only your own orders — someone else\'s returns 404.',
+        tags: ['Orders'],
+        security: [['bearerAuth' => []]],
+        parameters: [
+            new OA\Parameter(
+                name: 'id',
+                in: 'path',
+                required: true,
+                schema: new OA\Schema(type: 'string')
+            ),
+        ],
+        requestBody: new OA\RequestBody(
+            required: false,
+            content: new OA\JsonContent(
+                properties: [
+                    new OA\Property(property: 'reason', type: 'string', example: 'Changed my mind'),
+                ]
+            )
+        ),
+        responses: [
+            new OA\Response(response: 200, description: 'Refunded, stock returned'),
+            new OA\Response(response: 401, description: 'Unauthenticated'),
+            new OA\Response(response: 404, description: 'Not your order, or it does not exist'),
+            new OA\Response(response: 422, description: 'Already refunded, or was never paid'),
+        ]
+    )]
+   
     // POST /api/orders/{id}/refund
     public function refund(Request $request, string $id): JsonResponse
     {

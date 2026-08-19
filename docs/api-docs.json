@@ -263,6 +263,113 @@
                         "description": "Event not found"
                     }
                 }
+            },
+            "delete": {
+                "tags": [
+                    "Events"
+                ],
+                "summary": "Delete an event",
+                "description": "Only possible when the event has no orders. Cancel it instead — deleting would orphan those orders and erase a financial record.",
+                "operationId": "54be98df9381a8b89013d29e170a31fe",
+                "parameters": [
+                    {
+                        "name": "id",
+                        "in": "path",
+                        "required": true,
+                        "schema": {
+                            "type": "string"
+                        }
+                    }
+                ],
+                "responses": {
+                    "204": {
+                        "description": "Deleted, along with its ticket types"
+                    },
+                    "403": {
+                        "description": "Token lacks the events:manage scope"
+                    },
+                    "422": {
+                        "description": "The event has orders"
+                    }
+                },
+                "security": [
+                    {
+                        "bearerAuth": []
+                    }
+                ]
+            },
+            "patch": {
+                "tags": [
+                    "Events"
+                ],
+                "summary": "Update an event",
+                "description": "Partial update — only the fields you send are changed. Requires the events:manage scope.",
+                "operationId": "b374fc5e8a4d9d816f3a4de49c6c17ec",
+                "parameters": [
+                    {
+                        "name": "id",
+                        "in": "path",
+                        "required": true,
+                        "schema": {
+                            "type": "string"
+                        }
+                    }
+                ],
+                "requestBody": {
+                    "required": true,
+                    "content": {
+                        "application/json": {
+                            "schema": {
+                                "properties": {
+                                    "name": {
+                                        "type": "string",
+                                        "example": "Riyadh Season Concert"
+                                    },
+                                    "city": {
+                                        "type": "string",
+                                        "example": "Riyadh"
+                                    },
+                                    "date": {
+                                        "type": "string",
+                                        "format": "date",
+                                        "example": "2026-11-20"
+                                    },
+                                    "status": {
+                                        "type": "string",
+                                        "enum": [
+                                            "active",
+                                            "paused",
+                                            "cancelled"
+                                        ]
+                                    },
+                                    "meta": {
+                                        "type": "object"
+                                    }
+                                },
+                                "type": "object"
+                            }
+                        }
+                    }
+                },
+                "responses": {
+                    "200": {
+                        "description": "Event updated"
+                    },
+                    "403": {
+                        "description": "Token lacks the events:manage scope"
+                    },
+                    "404": {
+                        "description": "Event not found"
+                    },
+                    "422": {
+                        "description": "Validation failed"
+                    }
+                },
+                "security": [
+                    {
+                        "bearerAuth": []
+                    }
+                ]
             }
         },
         "/orders": {
@@ -342,6 +449,220 @@
                     }
                 ]
             }
+        },
+        "/orders/{id}/refund": {
+            "post": {
+                "tags": [
+                    "Orders"
+                ],
+                "summary": "Refund an order",
+                "description": "Marks the order refunded and returns the tickets to stock, atomically. Only your own orders — someone else's returns 404.",
+                "operationId": "0c63ece0d98759426bab78bb5d8ed870",
+                "parameters": [
+                    {
+                        "name": "id",
+                        "in": "path",
+                        "required": true,
+                        "schema": {
+                            "type": "string"
+                        }
+                    }
+                ],
+                "requestBody": {
+                    "required": false,
+                    "content": {
+                        "application/json": {
+                            "schema": {
+                                "properties": {
+                                    "reason": {
+                                        "type": "string",
+                                        "example": "Changed my mind"
+                                    }
+                                },
+                                "type": "object"
+                            }
+                        }
+                    }
+                },
+                "responses": {
+                    "200": {
+                        "description": "Refunded, stock returned"
+                    },
+                    "401": {
+                        "description": "Unauthenticated"
+                    },
+                    "404": {
+                        "description": "Not your order, or it does not exist"
+                    },
+                    "422": {
+                        "description": "Already refunded, or was never paid"
+                    }
+                },
+                "security": [
+                    {
+                        "bearerAuth": []
+                    }
+                ]
+            }
+        },
+        "/events/{eventId}/tickets": {
+            "post": {
+                "tags": [
+                    "Tickets"
+                ],
+                "summary": "Create a ticket type",
+                "description": "Adds a ticket type to an event. The event_name is copied from the event, never taken from the request.",
+                "operationId": "7c92b31ba000f5ed4c3e920be93b5cd1",
+                "parameters": [
+                    {
+                        "name": "eventId",
+                        "in": "path",
+                        "required": true,
+                        "schema": {
+                            "type": "string"
+                        }
+                    }
+                ],
+                "requestBody": {
+                    "required": true,
+                    "content": {
+                        "application/json": {
+                            "schema": {
+                                "required": [
+                                    "type",
+                                    "price",
+                                    "quantity_available"
+                                ],
+                                "properties": {
+                                    "type": {
+                                        "type": "string",
+                                        "example": "VIP"
+                                    },
+                                    "price": {
+                                        "type": "number",
+                                        "example": 500
+                                    },
+                                    "quantity_available": {
+                                        "type": "integer",
+                                        "example": 100
+                                    }
+                                },
+                                "type": "object"
+                            }
+                        }
+                    }
+                },
+                "responses": {
+                    "201": {
+                        "description": "Ticket type created"
+                    },
+                    "403": {
+                        "description": "Token lacks the events:manage scope"
+                    },
+                    "422": {
+                        "description": "Validation failed"
+                    }
+                },
+                "security": [
+                    {
+                        "bearerAuth": []
+                    }
+                ]
+            }
+        },
+        "/tickets/{id}": {
+            "delete": {
+                "tags": [
+                    "Tickets"
+                ],
+                "summary": "Delete a ticket type",
+                "description": "Only possible when no orders reference it.",
+                "operationId": "f04259a36f61d75107cf887dac1f5ec8",
+                "parameters": [
+                    {
+                        "name": "id",
+                        "in": "path",
+                        "required": true,
+                        "schema": {
+                            "type": "string"
+                        }
+                    }
+                ],
+                "responses": {
+                    "204": {
+                        "description": "Deleted"
+                    },
+                    "403": {
+                        "description": "Token lacks the events:manage scope"
+                    },
+                    "422": {
+                        "description": "The ticket type has orders"
+                    }
+                },
+                "security": [
+                    {
+                        "bearerAuth": []
+                    }
+                ]
+            },
+            "patch": {
+                "tags": [
+                    "Tickets"
+                ],
+                "summary": "Update a ticket type",
+                "description": "Partial update. Changing the price does not affect existing orders — they store the price paid at purchase time.",
+                "operationId": "a3e53f97dbbb56009c38f140ae83cb31",
+                "parameters": [
+                    {
+                        "name": "id",
+                        "in": "path",
+                        "required": true,
+                        "schema": {
+                            "type": "string"
+                        }
+                    }
+                ],
+                "requestBody": {
+                    "required": true,
+                    "content": {
+                        "application/json": {
+                            "schema": {
+                                "properties": {
+                                    "type": {
+                                        "type": "string",
+                                        "example": "VIP"
+                                    },
+                                    "price": {
+                                        "type": "number",
+                                        "example": 600
+                                    },
+                                    "quantity_available": {
+                                        "type": "integer",
+                                        "example": 150
+                                    }
+                                },
+                                "type": "object"
+                            }
+                        }
+                    }
+                },
+                "responses": {
+                    "200": {
+                        "description": "Ticket type updated"
+                    },
+                    "403": {
+                        "description": "Token lacks the events:manage scope"
+                    },
+                    "422": {
+                        "description": "Validation failed"
+                    }
+                },
+                "security": [
+                    {
+                        "bearerAuth": []
+                    }
+                ]
+            }
         }
     },
     "components": {
@@ -366,6 +687,10 @@
         {
             "name": "Orders",
             "description": "Orders"
+        },
+        {
+            "name": "Tickets",
+            "description": "Tickets"
         }
     ]
 }
